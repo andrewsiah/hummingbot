@@ -454,7 +454,7 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
             # If prices have moved, one side is still profitable, here cancel and
             # place at the next tick.
             if self._current_timestamp > anti_hysteresis_timer:
-                if not self.c_check_if_price_has_drifted(market_pair, active_order):
+                if self.c_check_if_price_has_drifted(market_pair, active_order):
                     need_adjust_order = True
                     continue
 
@@ -629,7 +629,7 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
                 self.log_with_clock(logging.DEBUG,
                                     f"Current buy order price={order_price}, "
                                     f"suggested order price={suggested_price}")
-                return False
+                return True
             else:
                 if self._logging_options & self.OPTION_LOG_ADJUST_ORDER:
                     self.log_with_clock(
@@ -643,9 +643,9 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
                 self.log_with_clock(logging.DEBUG,
                                     f"Current sell order price={order_price}, "
                                     f"suggested order price={suggested_price}")
-                return False
+                return True
 
-        return True
+        return False
 
     cdef c_check_and_hedge_orders(self, object market_pair):
         """
