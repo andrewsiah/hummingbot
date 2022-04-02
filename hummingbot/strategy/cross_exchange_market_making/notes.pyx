@@ -697,7 +697,6 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
                         f"({market_pair.maker.trading_pair}) Hedged maker buy order(s) of "
                         f"{buy_fill_quantity} {market_pair.maker.base_asset} on taker market to lock in profits. "
                         f"(maker avg price={avg_fill_price}, taker top={taker_top})"
-                        f"Taker Hedge Selling: {quantized_hedge_amount}{market_pair.maker.base_asset} @ Price of {order_price}"
                     )
             else:
                 self.log_with_clock(
@@ -710,6 +709,12 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
         if sell_fill_quantity > 0:
             hedged_order_quantity = min(
                 sell_fill_quantity,
+                #Gets sellable quantity depending on quote asset available, and checks how much I can buy back
+                ## EDGE: What if order_book on taker side is very thin, and your available balance too low
+                ## It will underhedge!!
+                ## Reason why it's here. If you emit an order that is unfillable, it won't even fill.
+                ## TODO: Test it and see what happens.
+                ## Wouldn't it emit a fillable amount in the first place? OH, the order book changed between pre-fill and post-fill?
                 taker_market.c_get_available_balance(market_pair.taker.quote_asset) /
                 market_pair.taker.get_price_for_volume(True, sell_fill_quantity).result_price *
                 self._order_size_taker_balance_factor
@@ -736,7 +741,6 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
                         f"({market_pair.maker.trading_pair}) Hedged maker sell order(s) of "
                         f"{sell_fill_quantity} {market_pair.maker.base_asset} on taker market to lock in profits. "
                         f"(maker avg price={avg_fill_price}, taker top={taker_top})"
-                        f"Taker Hedge Buying: {quantized_hedge_amount}{market_pair.maker.base_asset} @ Price of {order_price}"
                     )
             else:
                 self.log_with_clock(

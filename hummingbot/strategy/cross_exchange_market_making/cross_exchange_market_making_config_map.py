@@ -169,7 +169,7 @@ cross_exchange_market_making_config_map = {
     "anti_hysteresis_duration": ConfigVar(
         key="anti_hysteresis_duration",
         prompt="What is the minimum time interval you want limit orders to be adjusted? (in seconds) >>> ",
-        default=60,
+        default=2,
         type_str="float",
         required_if=lambda: False,
         validator=lambda v: validate_decimal(v, min_value=0, inclusive=False)
@@ -187,7 +187,7 @@ cross_exchange_market_making_config_map = {
         key="order_size_taker_balance_factor",
         prompt="What percentage of asset balance would you like to use for hedging trades on the taker market? "
                "(Enter 1 to indicate 1%) >>> ",
-        default=Decimal("99.5"),
+        default=Decimal("99.99"),
         type_str="decimal",
         required_if=lambda: False,
         validator=lambda v: validate_decimal(v, Decimal(0), Decimal(100), inclusive=False)
@@ -231,7 +231,7 @@ cross_exchange_market_making_config_map = {
         prompt="How much buffer do you want to add to the price to account for slippage for taker orders "
                "Enter 1 to indicate 1% >>> ",
         prompt_on_new=True,
-        default=Decimal("5"),
+        default=Decimal("10"),
         type_str="decimal",
         validator=lambda v: validate_decimal(v, Decimal(0), Decimal(100), inclusive=True)
     )
