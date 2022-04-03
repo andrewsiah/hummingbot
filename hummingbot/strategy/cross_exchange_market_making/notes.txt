@@ -677,7 +677,8 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
             quantized_hedge_amount = taker_market.c_quantize_order_amount(taker_trading_pair, Decimal(hedged_order_quantity))
             taker_top = taker_market.c_get_price(taker_trading_pair, False)
             avg_fill_price = (sum([r.price * r.amount for _, r in buy_fill_records]) /
-                              sum([r.amount for _, r in buy_fill_records]))
+                              sum([r.amount for _, r in buy_fill_record
+                              s]))
             order_price = taker_market.c_get_price_for_volume(
                 taker_trading_pair, False, quantized_hedge_amount
             ).result_price
