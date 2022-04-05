@@ -124,6 +124,45 @@ cross_exchange_market_making_config_map = {
         type_str="decimal",
         validator=lambda v: validate_decimal(v, min_value=Decimal("0"), inclusive=True),
     ),
+    "min_order_amount": ConfigVar(
+        key="min_order_amount",
+        prompt="What is the minimum order amount required for bid or ask orders? (Ideally $10) >>> ",
+        prompt_on_new=True,
+        type_str="decimal",
+        validator=lambda v: validate_decimal(v, Decimal("0"), inclusive=False),
+    ),
+    "keep_target_base_balance": ConfigVar(
+        key="keep_target_balance",
+        prompt="Do you want to actively maintain a certain target_balance, next questions are for these settings y/n >>> ",
+        type_str="bool",
+        default="True",
+        validator=lambda v: validate_bool(v),
+        prompt_on_new=True,
+    ),
+    "target_base_balance_amount": ConfigVar(
+        key="target_base_balance",
+        prompt="How much in base asset do you want the bot to rebalance to maintain >>> ",
+        type_str="decimal",
+        default=lambda: cross_exchange_market_making_config_map.get('order_amount').value,
+        prompt_on_new=lambda: cross_exchange_market_making_config_map.get('keep_target_balance').value is True,
+        required_if=lambda: cross_exchange_market_making_config_map.get('keep_target_balance').value is True,
+    ),
+    "slippage_buffer_fix": ConfigVar(
+        key="slippage_buffer_fix",
+        prompt="At what slippage rate (ie percent difference away from mid price) should the rebalancing orders be sent >>> ",
+        default=Decimal('1'),
+        type_str="decimal",
+        prompt_on_new=lambda: cross_exchange_market_making_config_map.get('keep_target_balance').value is True,
+        required_if=lambda: cross_exchange_market_making_config_map.get('keep_target_balance').value is True,
+    ),
+    "waiting_time": ConfigVar(
+        key="waiting_time",
+        prompt="Time to wait since order first detected to be imbalanced before triggering the rebalance fixer >>> ",
+        default=4,
+        type_str="decimal",
+        prompt_on_new=False,
+        required_if=lambda: cross_exchange_market_making_config_map.get('keep_target_balance').value is True,
+    ),
     "adjust_order_enabled": ConfigVar(
         key="adjust_order_enabled",
         prompt="Do you want to enable adjust order? (Yes/No) >>> ",
@@ -131,6 +170,23 @@ cross_exchange_market_making_config_map = {
         type_str="bool",
         validator=validate_bool,
         required_if=lambda: False,
+    ),
+    "top_depth_tolerance": ConfigVar(
+        key="top_depth_tolerance",
+        prompt=top_depth_tolerance_prompt,
+        default= lambda: cross_exchange_market_making_config_map.get("order_amount").value / 10,
+        prompt_on_new=True,
+        type_str="decimal",
+        required_if=lambda: False,
+        validator=lambda v: validate_decimal(v, min_value=0, inclusive=True)
+    ),
+    "anti_hysteresis_duration": ConfigVar(
+        key="anti_hysteresis_duration",
+        prompt="What is the minimum time interval you want limit orders to be adjusted? (in seconds) >>> ",
+        default=0.25,
+        type_str="float",
+        required_if=lambda: False,
+        validator=lambda v: validate_decimal(v, min_value=0, inclusive=False)
     ),
     "active_order_canceling": ConfigVar(
         key="active_order_canceling",
@@ -154,22 +210,6 @@ cross_exchange_market_making_config_map = {
         key="limit_order_min_expiration",
         prompt="How often do you want limit orders to expire (in seconds)? >>> ",
         default=130.0,
-        type_str="float",
-        required_if=lambda: False,
-        validator=lambda v: validate_decimal(v, min_value=0, inclusive=False)
-    ),
-    "top_depth_tolerance": ConfigVar(
-        key="top_depth_tolerance",
-        prompt=top_depth_tolerance_prompt,
-        default=0,
-        type_str="decimal",
-        required_if=lambda: False,
-        validator=lambda v: validate_decimal(v, min_value=0, inclusive=True)
-    ),
-    "anti_hysteresis_duration": ConfigVar(
-        key="anti_hysteresis_duration",
-        prompt="What is the minimum time interval you want limit orders to be adjusted? (in seconds) >>> ",
-        default=2,
         type_str="float",
         required_if=lambda: False,
         validator=lambda v: validate_decimal(v, min_value=0, inclusive=False)
@@ -231,7 +271,7 @@ cross_exchange_market_making_config_map = {
         prompt="How much buffer do you want to add to the price to account for slippage for taker orders "
                "Enter 1 to indicate 1% >>> ",
         prompt_on_new=True,
-        default=Decimal("10"),
+        default=Decimal("1"),
         type_str="decimal",
         validator=lambda v: validate_decimal(v, Decimal(0), Decimal(100), inclusive=True)
     )

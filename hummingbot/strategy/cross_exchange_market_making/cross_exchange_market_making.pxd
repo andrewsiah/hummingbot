@@ -38,6 +38,13 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
         bint _hb_app_notification
         list _maker_order_ids
         double _last_conv_rates_logged
+        object _min_order_amount
+        object _target_base_balance
+        object _slippage_buffer_fix
+        object _waiting_time
+        object _fix_counter
+        object _counter
+        bint _keep_target_balance
 
     cdef c_process_market_pair(self,
                                object market_pair,
@@ -89,3 +96,15 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
                            bint is_maker,
                            object amount,
                            object price)
+
+    cdef c_balance_fix_fix(self, market_pair)
+
+    cdef c_place_fixing_order(self, is_maker: bool, is_buy: bool, market_pair)
+
+    cdef c_balance_fix_check(self, market_pair)
+
+    cdef c_check_available_balance(self, is_buy: bool, market_pair)
+
+    cdef c_cancel_all_maker_limit_orders(self, market_pair)
+
+    cdef c_cancel_all_taker_limit_orders(self, market_pair)

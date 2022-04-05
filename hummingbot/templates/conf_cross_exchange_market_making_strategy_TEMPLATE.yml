@@ -82,3 +82,13 @@ slippage_buffer: null
 
 # For more detailed information, see:
 # https://docs.hummingbot.io/strategies/cross-exchange-market-making/#configuration-parameters
+
+min_order_amount: null
+
+target_base_balance: null
+
+slippage_buffer_fix: null
+
+waiting_time: null
+
+keep_target_balance: null
