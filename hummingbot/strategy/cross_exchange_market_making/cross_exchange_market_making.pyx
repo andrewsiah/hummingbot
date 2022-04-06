@@ -434,8 +434,8 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
                             f"Balance Fix of {order_size_base}{market_pair.maker.base_asset} required."
                             )
         else:
-            self.counter = 0
-        if self.counter > self.waiting_time:
+            self._counter = 0
+        if self._counter > self._waiting_time:
             return True
         return False
 
@@ -490,7 +490,7 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
         if self._keep_target_balance:
             # self.logger().info(f"Waiting_ticks of {self._counter}/{self._waiting_time} c_ticks. Order_size base: {order_size_base} Base Balance: {total_base_balance}, Target Balance: {self._target_base_balance}, Fix Difference: {pref_base_min_actual}")
             
-            if self._counter > self._waiting_time and order_size_base > self.min_order_amount:
+            if self._counter > self._waiting_time and order_size_base > self._min_order_amount:
                 self.c_cancel_all_taker_limit_orders(market_pair)
                 self.c_cancel_all_maker_limit_orders(market_pair)
                 self.log_with_clock(
@@ -514,7 +514,7 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
                         self.logger().info(f"Placed rebalancing BUY order of {self._min_order_amount}{market_pair.maker.base_asset} at {market_pair.maker.market}")
                     else:
                         self.logger().info(f"Insufficient quote balance to BUY {self._min_order_amount}{market_pair.maker.base_asset} to fix balance on either taker or maker exchange.")
-                        self.counter = 0
+                        self._counter = 0
                     return True
                 
                 #If target base balance < our current amount
@@ -528,7 +528,7 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
                         self.logger().info(f"Placed rebalancing SELL order of {self._min_order_amount}{market_pair.maker.base_asset} at {market_pair.maker.market}")
                     else:
                         self.logger().info(f"Insufficient base balance to SELL {self._min_order_amount}{market_pair.maker.base_asset} fix balance on either taker or maker exchanges")
-                        self.counter = 0
+                        self._counter = 0
                     return True
 
                 return True

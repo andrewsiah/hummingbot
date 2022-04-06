@@ -32,7 +32,7 @@ def taker_trading_pair_prompt():
 def top_depth_tolerance_prompt() -> str:
     maker_market = cross_exchange_market_making_config_map["maker_market_trading_pair"].value
     base_asset, quote_asset = maker_market.split("-")
-    return f"What is your top depth tolerance? (in {base_asset}) >>> "
+    return f"What is your top depth tolerance? (in {base_asset}). This is similar to order_optimization_depth in PMM. Simple recommendation is order_amount / 10. >>> "
 
 
 # strategy specific validators
@@ -131,7 +131,7 @@ cross_exchange_market_making_config_map = {
         type_str="decimal",
         validator=lambda v: validate_decimal(v, Decimal("0"), inclusive=False),
     ),
-    "keep_target_base_balance": ConfigVar(
+    "keep_target_balance": ConfigVar(
         key="keep_target_balance",
         prompt="Do you want to actively maintain a certain target_balance, next questions are for these settings y/n >>> ",
         type_str="bool",
@@ -139,7 +139,7 @@ cross_exchange_market_making_config_map = {
         validator=lambda v: validate_bool(v),
         prompt_on_new=True,
     ),
-    "target_base_balance_amount": ConfigVar(
+    "target_base_balance": ConfigVar(
         key="target_base_balance",
         prompt="How much in base asset do you want the bot to rebalance to maintain >>> ",
         type_str="decimal",
@@ -174,16 +174,15 @@ cross_exchange_market_making_config_map = {
     "top_depth_tolerance": ConfigVar(
         key="top_depth_tolerance",
         prompt=top_depth_tolerance_prompt,
-        default= lambda: cross_exchange_market_making_config_map.get("order_amount").value / 10,
+        default= lambda: (cross_exchange_market_making_config_map.get('order_amount').value) / Decimal('10'),
         prompt_on_new=True,
         type_str="decimal",
-        required_if=lambda: False,
         validator=lambda v: validate_decimal(v, min_value=0, inclusive=True)
     ),
     "anti_hysteresis_duration": ConfigVar(
         key="anti_hysteresis_duration",
         prompt="What is the minimum time interval you want limit orders to be adjusted? (in seconds) >>> ",
-        default=0.25,
+        default=1,
         type_str="float",
         required_if=lambda: False,
         validator=lambda v: validate_decimal(v, min_value=0, inclusive=False)
