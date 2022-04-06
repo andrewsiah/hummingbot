@@ -2,11 +2,7 @@ import asyncio
 import logging
 from decimal import Decimal
 from enum import Enum
-from typing import (
-    Dict,
-    List,
-    Optional,
-)
+from typing import Dict, List, Optional
 
 import aiohttp
 

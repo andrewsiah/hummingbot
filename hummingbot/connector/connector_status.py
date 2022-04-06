@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 connector_status = {
-    'altmarkets': 'yellow',
+    'altmarkets': 'green',
     'ascend_ex': 'yellow',
     'balancer': 'green',
-    'beaxy': 'green',
+    'beaxy': 'yellow',
     'binance': 'green',
     'binance_perpetual': 'yellow',
     'binance_perpetual_testnet': 'yellow',
