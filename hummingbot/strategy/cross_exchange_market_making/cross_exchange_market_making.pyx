@@ -415,6 +415,9 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
         return False
 
     cdef c_balance_fix_check(self, market_pair):
+        """
+        Checks whether it has been enough time till rebalance should happen. Returns true if yes.
+        """
         cdef:
             ExchangeBase maker_market = market_pair.maker.market
             ExchangeBase taker_market = market_pair.taker.market
@@ -430,102 +433,11 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
                             f"and Target Base Balance of {self._target_base_balance}{market_pair.maker.base_asset}"
                             f"Balance Fix of {order_size_base}{market_pair.maker.base_asset} required."
                             )
-            return True
         else:
             self.counter = 0
+        if self.counter > self.waiting_time:
+            return True
         return False
-
-    cdef c_check_available_balance(self, is_buy: bool, market_pair):
-        cdef:
-            ExchangeBase maker_market = market_pair.maker.market
-            ExchangeBase taker_market = market_pair.taker.market
-            object taker_trading_pair = market_pair.taker.trading_pair
-            object maker_trading_pair = market_pair.maker.trading_pair
-            object mid_price_taker = taker_market.get_mid_price(taker_trading_pair)
-            object mid_price_maker = maker_market.get_mid_price(maker_trading_pair)
-            object mid_price = maker_market.get_mid_price(maker_trading_pair)
-            object mid_price_taker_buy_price = mid_price_taker * (Decimal("1") + self._slippage_buffer_fix)
-            object mid_price_maker_buy_price = mid_price_maker * (Decimal("1") + self._slippage_buffer_fix)
-            object mid_price_taker_sell_price = mid_price_taker * (Decimal("1") - self._slippage_buffer_fix)
-            object mid_price_maker_sell_price = mid_price_maker * (Decimal("1") - self._slippage_buffer_fix)
-            object maker_available_balance_base = maker_market.c_get_available_balance(market_pair.maker.base_asset)
-            object taker_available_balance_base = taker_market.c_get_available_balance(market_pair.taker.base_asset)
-            object maker_available_balance_quote = maker_market.c_get_available_balance(market_pair.maker.quote_asset)
-            object taker_available_balance_quote = taker_market.c_get_available_balance(market_pair.taker.quote_asset)
-            object total_base_balance = taker_market.c_get_balance(market_pair.taker.base_asset) + maker_market.c_get_balance(market_pair.maker.base_asset)
-            object pref_base_min_actual = Decimal(self._target_base_balance - total_base_balance)
-            object order_size_base = abs(pref_base_min_actual)
-            object maker_order_size_in_quote = (order_size_base * mid_price_taker_buy_price)
-            object taker_order_size_in_quote = (order_size_base * mid_price_taker_buy_price)
-            # actual balance lower than wanted, thus need to buy
-        if is_buy:
-            #  check balance to check whether you can buy the asset
-            if (taker_available_balance_quote/mid_price_taker_buy_price) > order_size_base:  # check if availabale balance is enough
-                self.logger().info(f"Taker enough quote balance {taker_available_balance_quote / mid_price_taker_buy_price} to buy {order_size_base}, will place a taker buy order")
-                return "buy_taker"
-            elif (maker_available_balance_quote / mid_price_maker_buy_price) > order_size_base :  # check if availabale balance is enough
-                self.logger().info(f"Maker enough quote balance {maker_available_balance_quote / mid_price_maker_buy_price} to buy {order_size_base}, will place a maker buy order")
-                return "buy_maker"  # not enough balance to buy
-            else:
-                if (taker_available_balance_quote/mid_price_taker_buy_price) + (maker_available_balance_quote / mid_price_maker_buy_price)  > order_size_base:
-                    return "buy_maker_taker"
-                    self.logger().info(f"Enough quote balane on both exchanges only Taker: {(taker_available_balance_quote/mid_price_taker_buy_price)}, Maker: {maker_available_balance_quote / mid_price_maker_buy_price}, Total: {taker_available_balance_quote/mid_price_taker_buy_price + (maker_available_balance_quote / mid_price_maker_buy_price)}, to buy {order_size_base}, will place maker and taker buy")
-                else:
-                    self.logger().info(f"Not enough quote balance to buy Order size: {order_size_base}. Maker Quote balance: {maker_available_balance_quote}, Taker Quote balance:{taker_available_balance_quote} Order size in quote: {maker_order_size_in_quote}")
-                    return False
-
-        else:
-            # check balance to chech weather you can sell the asset
-            if taker_available_balance_base > order_size_base:
-                self.logger().info(f"Taker enough base balance {taker_available_balance_base} to sell {order_size_base}, will place a taker sell order")
-                return "sell_taker"
-            elif maker_available_balance_base > order_size_base:
-                self.logger().info(f"Maker enough base balance {maker_available_balance_base}, to sell {order_size_base}, will place a Maker sell order")
-                return "sell_maker"
-
-            else:  # not enough balance to place it on one available exchange
-                if (maker_available_balance_base + taker_available_balance_base) > order_size_base:
-                    return "sell_maker_taker"
-                    self.logger().info(f"Enough base balane on both exchanges only, Maker: {maker_available_balance_base}, Taker:{taker_available_balance_base}, Total: {(maker_available_balance_base + taker_available_balance_base)}, to sell {order_size_base}, will place taker and maker sell")
-                else:
-                    self.logger().info(f"Not enough base balance to sell. order size: {order_size_base}")
-                    return False
-
-    #Redundant function, see whether can refacotr out. 
-    cdef c_place_fixing_order(self, is_maker: bool, is_buy: bool, market_pair):
-        cdef:
-            ExchangeBase maker_market = market_pair.maker.market
-            ExchangeBase taker_market = market_pair.taker.market
-            object taker_trading_pair = market_pair.taker.trading_pair
-            object maker_trading_pair = market_pair.maker.trading_pair
-            object mid_price_taker = taker_market.get_mid_price(taker_trading_pair)
-            object mid_price_maker = maker_market.get_mid_price(maker_trading_pair)
-            object mid_price = maker_market.get_mid_price(maker_trading_pair)
-            object mid_price_taker_buy_price = mid_price_taker * (Decimal("1") + self._slippage_buffer_fix)
-            object mid_price_maker_buy_price = mid_price_maker * (Decimal("1") + self._slippage_buffer_fix)
-            object mid_price_taker_sell_price = mid_price_taker * (Decimal("1") - self._slippage_buffer_fix)
-            object mid_price_maker_sell_price = mid_price_maker * (Decimal("1") - self._slippage_buffer_fix)
-            object total_base_balance = taker_market.c_get_balance(market_pair.taker.base_asset) + maker_market.c_get_balance(market_pair.maker.base_asset)
-            object pref_base_min_actual = Decimal(self._target_base_balance - total_base_balance)
-            object order_size_base = abs(pref_base_min_actual)
-
-
-        # Sends rebalancing orders
-        if is_buy and is_maker:
-            self.logger().info(f"Placing Balance Fix maker buy order, {order_size_base}{market_pair.taker.base_asset}@{mid_price_maker_buy_price}{market_pair.taker.quote_asset}")
-            self.c_place_order(market_pair, True, market_pair.maker, False, order_size_base, Decimal(mid_price_maker_buy_price))
-
-        if is_buy and not is_maker:
-            self.logger().info(f"Placing Balance Fix taker buy order, {order_size_base}{market_pair.taker.base_asset}@{mid_price_taker_buy_price}{market_pair.taker.quote_asset}")
-            self.c_place_order(market_pair, True, market_pair.taker, False, order_size_base, Decimal(mid_price_taker_buy_price))
-
-        if not is_buy and is_maker:
-            self.logger().info(f"Placing Balance Fix maker sell order, {order_size_base}{market_pair.taker.base_asset}@{mid_price_maker_buy_price}{market_pair.taker.quote_asset}")
-            self.c_place_order(market_pair, False, market_pair.maker, False, order_size_base, Decimal(mid_price_maker_sell_price))
-
-        if not is_buy and not is_maker:
-            self.logger().info(f"Placing Balance Fix taker sell order, {order_size_base}{market_pair.taker.base_asset}@{mid_price_taker_buy_price}{market_pair.taker.quote_asset}")
-            self.c_place_order(market_pair, False, market_pair.taker, False, order_size_base, Decimal(mid_price_taker_sell_price))
 
     cdef c_cancel_all_maker_limit_orders(self, market_pair):
         market_tuple = market_pair.maker
@@ -541,7 +453,26 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
             for order in limit_orders:
               self.c_cancel_order(market_tuple, order)
 
-    cdef c_balance_fix_fix(self, market_pair):
+    cdef c_fix_balance(self, market_pair):
+        """
+        Function that is called to fix balance. 
+        Calls check_available_balance first, then based on balance, fixes balance.
+        Checks for available balance on both maker and taker via check_available_balance.
+        Depending on which has balance, will execute rebalance strategy at that exchange.
+        Glossary:
+        0: buy_taker
+        1: buy_maker
+        2: buy_maker_taker
+        3: sell_taker
+        4: sell_maker
+        5: sell_maker_taker
+
+
+        Rebalancing orders are to be sent in chunks of minimum_order_amount. Can lower slippage, and bypass possible error of not having enough balance on both maker or taker.
+
+        #TODO: Figure out how to send orders to maker market without changing c_place_order. Or if necessary, minimal change to c_place_order.
+
+        """
         cdef:
             ExchangeBase maker_market = market_pair.maker.market
             ExchangeBase taker_market = market_pair.taker.market
@@ -565,94 +496,51 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
             object taker_order_size_in_quote = (order_size_base / mid_price_taker_buy_price)
 
         if self._keep_target_balance:
-            self.logger().info(f"Waiting_ticks of {self._counter}/{self._waiting_time} c_ticks. Order_size base: {order_size_base} Base Balance: {total_base_balance}, Target Balance: {self._target_base_balance}, Fix Difference: {pref_base_min_actual}")
+            # self.logger().info(f"Waiting_ticks of {self._counter}/{self._waiting_time} c_ticks. Order_size base: {order_size_base} Base Balance: {total_base_balance}, Target Balance: {self._target_base_balance}, Fix Difference: {pref_base_min_actual}")
             
-            if self._counter > self._waiting_time:
+            if self._counter > self._waiting_time and order_size_base > self.min_order_amount:
                 self.c_cancel_all_taker_limit_orders(market_pair)
                 self.c_cancel_all_maker_limit_orders(market_pair)
                 self.log_with_clock(
                     logging.INFO,
-                    f"Just canceled all maker and taker orders to fix base balance")
+                    f"Canceled all maker and taker orders to fix base balance")
                 self._fix_counter += 1
                 self.log_with_clock(
                     logging.INFO,
-                    f"fix_counter is now at: {self._fix_counter} balance fixes since strategy started.")
+                    f"fix_counter is now at: {self._fix_counter} balance fixes since strategy started."
+                    f"Timer passed {self._waiting_time} c_ticks, current value of ticks: {self._counter} Order_size base: "
+                    f"{order_size_base} Base Balance: {total_base_balance}, Target Balance: {self._target_base_balance}, Diff: {pref_base_min_actual}")
 
-                #If we need to buy to fix target balance: ie target base balance is more than our current amount
-                if pref_base_min_actual > 0 and order_size_base > self._min_order_amount:
-                    # second time checking if there is a difference, if there is, place buy order
-                    # here you would want to cancel all orders on the exchanges
-                    self.logger().info(f"Timer passed {self._waiting_time} c_ticks, current value of Timer: {self._counter} Order_size base: {order_size_base} Base Balance: {total_base_balance}, Target Balance: {self._target_base_balance}, Diff: {pref_base_min_actual}")
+                #If we need to buy to fix target balance: ie target base balance > our current amount
+                if pref_base_min_actual > 0:
                     # available balance with a buy order on maker side
-                    rebalance_action = self.c_check_available_balance(is_buy = True, market_pair = market_pair)
-                    if rebalance_action == "buy_maker":
-                        self.c_place_fixing_order(is_maker = True, is_buy = True, market_pair = market_pair)  # place maker buy order
-                        self._counter = 0
-
-                    # available balance with a buy order on taker side
-                    elif rebalance_action == "buy_taker":
-                        self.c_place_fixing_order(is_maker = False, is_buy = True, market_pair = market_pair)  # place taker buy order
-
-                    elif rebalance_action == "buy_maker_taker":
-                        # buy as much as possible on the taker exchange
-                        self.c_place_order(market_pair, True, market_pair.taker, False, min(Decimal(taker_available_balance_quote / mid_price_taker_buy_price), maker_order_size_in_quote), Decimal(mid_price_taker_buy_price))
-                        self.logger().info(f"Place buy order on taker and maker - Taker buy order is placed with most available balance or at max size of the order to restore balance {min(Decimal((taker_available_balance_quote / mid_price_taker_buy_price)), maker_order_size_in_quote)}")
-
-                        # if there is enough remaining on the maker exchange, place an order on the maker exchange with the remaining volume
-                        if maker_order_size_in_quote - (taker_available_balance_quote / mid_price_taker_buy_price > maker_available_balance_quote / mid_price_maker_buy_price * (Decimal("1"))):
-                            self.c_place_order(market_pair, True, market_pair.maker, False, min(Decimal(taker_order_size_in_quote - min(Decimal((taker_available_balance_quote / mid_price_taker_buy_price))))),maker_order_size_in_quote), Decimal(mid_price_maker_buy_price))
-                            # self.c_place_order(market_pair, True, market_pair.maker, False, min(Decimal(taker_order_size_in_quote - min(Decimal((taker_available_balance_quote / mid_price_taker_buy_price))))),maker_order_size_in_quote), Decimal(mid_price_maker_buy_price))
-                            self.logger().info(f"Place buy order on taker and maker - The remaining amount of buy order is placed on the maker exchange {Decimal((taker_order_size_in_quote - (taker_available_balance_quote / mid_price_taker_buy_price)))}")
-
-                    elif not self.c_check_available_balance(is_buy = True, market_pair = market_pair):   # if there is not enough on the maker exchange, just buy whatever you can buy
-                        if Decimal(taker_available_balance_quote / mid_price_taker_buy_price) > self._min_order_amount:
-                            self.c_place_order(market_pair, True, market_pair.taker, False, min(order_size_base, (Decimal(taker_available_balance_quote / mid_price_taker_buy_price))),Decimal(mid_price_taker_buy_price))
-                            self.logger().info(f"Place buy order on taker and maker - An order with as much taker buy available is placed as last option, Taker available:{Decimal(taker_available_balance_quote / mid_price_taker_buy_price)}")
-
-                        elif Decimal(maker_available_balance_quote / mid_price_maker_buy_price) > self._min_order_amount:
-                            self.c_place_order(market_pair, True, market_pair.maker, False, min(order_size_base, (Decimal(maker_available_balance_quote / mid_price_maker_buy_price))),Decimal(mid_price_maker_buy_price))
-                            self.logger().info(f"Place buy order on taker and maker - An order with as much maker buy available is placed as last option, Maker available:{Decimal(maker_available_balance_quote / mid_price_maker_buy_price)}")
-
-                        else:
-                            pass
-                    self._counter = 0
-
-                #If we need to sell to fix target balance: ie target base balance is less than our current amount
-                if pref_base_min_actual < 0 and order_size_base > self._min_order_amount:  # after checking again if there is a difference in balance
-                    self.logger().info(f"Timer passed {self._waiting_time} c_ticks, current value of Timer: {self._counter} Order_size base: {order_size_base} Total Base Balance: {total_base_balance}, Target Balance: {self._target_base_balance}, Diff: {pref_base_min_actual}")
-                    # available balance with a sell order on taker side
-                    if self.c_check_available_balance(is_buy = False, market_pair = market_pair) == "sell_taker":
-                        self.c_place_fixing_order(is_maker = False, is_buy = False, market_pair = market_pair)  # place taker sell order
-
-                    # available balance with a sell order on maker side
-                    elif self.c_check_available_balance(is_buy = False, market_pair = market_pair) == "sell_maker":
-                        self.c_place_fixing_order(is_maker = True, is_buy = False, market_pair = market_pair)  # place maker sell order
-
-                    elif self.c_check_available_balance(is_buy = False, market_pair = market_pair) == "sell_maker_taker":
-                        # place order on the taker exchange with volume available balance
-                        self.c_place_order(market_pair, False, market_pair.taker, False,  min(taker_available_balance_base, order_size_base), mid_price_taker_sell_price)
-                        self.logger().info(f"Place sell order on taker and maker - Taker sell order is placed with most available balance or at max size of the order to restore balance {min(taker_available_balance_base, order_size_base)} ")
-
-                        # if there is enough remaining on the maker exchange, also place an order on the maker exchange with the remainging value
-                        if order_size_base - min(taker_available_balance_base, order_size_base) > maker_available_balance_base:
-                            self.c_place_order(market_pair, False, market_pair.maker, False, (order_size_base - min(taker_available_balance_base, order_size_base)), mid_price_maker_sell_price)
-                            self.logger().info(f"Place sell order on taker and maker - The remaining amount of {min(taker_available_balance_base, order_size_base)} sell order is placed on the maker exchange")
-
-                    elif not self.c_check_available_balance(is_buy = False, market_pair = market_pair): # sell all availabe balance on the maker
-                        if taker_available_balance_base > self._min_order_amount:
-                            self.c_place_order(market_pair, False, market_pair.taker, False, min(taker_available_balance_base, order_size_base), mid_price_taker_sell_price)
-                            self.logger().info(f"Place sell order on taker and maker- An order with as much taker sell available {taker_available_balance_base} is placed as last option")
-
-                        elif maker_available_balance_base > self._min_order_amount:
-                            self.c_place_order(market_pair, False, market_pair.maker, False, min(maker_available_balance_base, order_size_base), mid_price_maker_sell_price)
-                            self.logger().info(f"Place sell order on taker and maker- An order with as much taker sell available {maker_available_balance_base} is placed as last option")
-
-                        else:
-                            pass
-                    self._counter = 0
+                    if (taker_available_balance_quote/mid_price_taker_buy_price) > self._min_order_amount:
+                        self.c_place_order(market_pair, True, market_pair.taker, False, self._min_order_amount, Decimal(mid_price_taker_buy_price))
+                        self.logger().info(f"Placed rebalancing BUY order of {self._min_order_amount}{market_pair.taker.base_asset} at {market_pair.taker.market}")
+                    elif (maker_available_balance_quote/mid_price_maker_buy_price) > self._min_order_amount:
+                        self.c_place_order(market_pair, True, market_pair.maker, False, self._min_order_amount, Decimal(mid_price_maker_buy_price))
+                        self.logger().info(f"Placed rebalancing BUY order of {self._min_order_amount}{market_pair.maker.base_asset} at {market_pair.maker.market}")
+                    else:
+                        self.logger().info(f"Insufficient quote balance to BUY {self._min_order_amount}{market_pair.maker.base_asset} to fix balance on either taker or maker exchange.")
+                        self.counter = 0
+                    return True
+                
+                #If target base balance < our current amount
+                if pref_base_min_actual < 0:
+                    # available balance with a buy order on maker side
+                    if taker_available_balance_base > self._min_order_amount:
+                        self.c_place_order(market_pair, False, market_pair.taker, False, self._min_order_amount, Decimal(mid_price_taker_sell_price))
+                        self.logger().info(f"Placed rebalancing SELL order of {self._min_order_amount}{market_pair.taker.base_asset} at {market_pair.taker.market}")
+                    elif maker_available_balance_base > self._min_order_amount:
+                        self.c_place_order(market_pair, False, market_pair.maker, False, self._min_order_amount, Decimal(mid_price_maker_sell_price))
+                        self.logger().info(f"Placed rebalancing SELL order of {self._min_order_amount}{market_pair.maker.base_asset} at {market_pair.maker.market}")
+                    else:
+                        self.logger().info(f"Insufficient base balance to SELL {self._min_order_amount}{market_pair.maker.base_asset} fix balance on either taker or maker exchanges")
+                        self.counter = 0
+                    return True
 
                 return True
-                #return true, so if there was a mistake, ship the normal proces untill it does not return true
+                #return true, so if there was a mistake, ship the normal proces until it does not return true
         return False
 
     cdef c_process_market_pair(self, object market_pair, list active_orders):
@@ -735,7 +623,7 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
             self._anti_hysteresis_timers[market_pair] = self._current_timestamp + self._anti_hysteresis_duration
 
         if self._keep_target_balance and self.c_balance_fix_check(market_pair):
-            self.c_balance_fix_fix(market_pair)
+            self.c_fix_balance(market_pair)
             return
 
         # If there's both an active bid and ask, then there's no need to think about making new limit orders.
@@ -1572,7 +1460,7 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
     cdef str c_place_order(self,
                            object market_pair,
                            bint is_buy,
-                           bint is_maker,  # True for maker order, False for taker order
+                           bint is_maker, # True for maker order, False for taker order
                            object amount,
                            object price):
         cdef:
