@@ -459,14 +459,6 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
         Calls check_available_balance first, then based on balance, fixes balance.
         Checks for available balance on both maker and taker via check_available_balance.
         Depending on which has balance, will execute rebalance strategy at that exchange.
-        Glossary:
-        0: buy_taker
-        1: buy_maker
-        2: buy_maker_taker
-        3: sell_taker
-        4: sell_maker
-        5: sell_maker_taker
-
 
         Rebalancing orders are to be sent in chunks of minimum_order_amount. Can lower slippage, and bypass possible error of not having enough balance on both maker or taker.
 
@@ -857,7 +849,7 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
             self.log_with_clock(logging.INFO, f"Slippage buffer adjusted order_price: {order_price}")
 
             if quantized_hedge_amount > s_decimal_zero:
-                self.c_place_order(market_pair, False, False, quantized_hedge_amount, order_price)
+                self.c_place_order(market_pair, False,market_pair.taker, False, quantized_hedge_amount, order_price)
 
                 del self._order_fill_buy_events[market_pair]
                 if self._logging_options & self.OPTION_LOG_MAKER_ORDER_HEDGED:
@@ -896,7 +888,7 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
             self.log_with_clock(logging.INFO, f"Slippage buffer adjusted order_price: {order_price}")
 
             if quantized_hedge_amount > s_decimal_zero:
-                self.c_place_order(market_pair, True, False, quantized_hedge_amount, order_price)
+                self.c_place_order(market_pair, True, market_pair.taker,False, quantized_hedge_amount, order_price)
 
                 del self._order_fill_sell_events[market_pair]
                 if self._logging_options & self.OPTION_LOG_MAKER_ORDER_HEDGED:
@@ -1401,7 +1393,7 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
                             f"Current hedging price: {effective_hedging_price:.8f} {market_pair.maker.quote_asset} "
                             f"(Rate adjusted: {effective_hedging_price_adjusted:.8f} {market_pair.taker.quote_asset})."
                         )
-                    order_id = self.c_place_order(market_pair, True, True, bid_size, bid_price)
+                    order_id = self.c_place_order(market_pair, True ,market_pair.maker , True, bid_size, bid_price)
                 else:
                     if self._logging_options & self.OPTION_LOG_NULL_ORDER_SIZE:
                         self.log_with_clock(
@@ -1440,7 +1432,7 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
                             f"Current hedging price: {effective_hedging_price:.8f} {market_pair.maker.quote_asset} "
                             f"(Rate adjusted: {effective_hedging_price_adjusted:.8f} {market_pair.taker.quote_asset})."
                         )
-                    order_id = self.c_place_order(market_pair, False, True, ask_size, ask_price)
+                    order_id = self.c_place_order(market_pair, False, market_pair.maker, True, ask_size, ask_price)
                 else:
                     if self._logging_options & self.OPTION_LOG_NULL_ORDER_SIZE:
                         self.log_with_clock(
@@ -1460,15 +1452,18 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
     cdef str c_place_order(self,
                            object market_pair,
                            bint is_buy,
-                           bint is_maker, # True for maker order, False for taker order
+                           object market,
+                           bint record_maker,
                            object amount,
                            object price):
+
+                       #market=market_pair.taker or maket_pair.maker or self._third_market
         cdef:
             str order_id
             double expiration_seconds = NaN
-            object market_info = market_pair.maker if is_maker else market_pair.taker
-            object order_type = market_info.market.get_maker_order_type() if is_maker else \
-                market_info.market.get_taker_order_type()
+            object market_info = market
+            object order_type = OrderType.LIMIT
+
         if order_type is OrderType.MARKET:
             price = s_decimal_nan
         if not self._active_order_canceling:
@@ -1483,9 +1478,39 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
                                                                 expiration_seconds=expiration_seconds)
         self._sb_order_tracker.c_add_create_order_pending(order_id)
         self._market_pair_tracker.c_start_tracking_order_id(order_id, market_info.market, market_pair)
-        if is_maker:
+        if record_maker: #only record maker orders that are filled for MM, not for fixing balance
             self._maker_order_ids.append(order_id)
         return order_id
+
+    # cdef str c_place_order(self,
+    #                        object market_pair,
+    #                        bint is_buy,
+    #                        bint is_maker, # True for maker order, False for taker order
+    #                        object amount,
+    #                        object price):
+    #     cdef:
+    #         str order_id
+    #         double expiration_seconds = NaN
+    #         object market_info = market_pair.maker if is_maker else market_pair.taker
+    #         object order_type = market_info.market.get_maker_order_type() if is_maker else \
+    #             market_info.market.get_taker_order_type()
+    #     if order_type is OrderType.MARKET:
+    #         price = s_decimal_nan
+    #     if not self._active_order_canceling:
+    #         expiration_seconds = self._limit_order_min_expiration
+    #     if is_buy:
+    #         order_id = StrategyBase.c_buy_with_specific_market(self, market_info, amount,
+    #                                                            order_type=order_type, price=price,
+    #                                                            expiration_seconds=expiration_seconds)
+    #     else:
+    #         order_id = StrategyBase.c_sell_with_specific_market(self, market_info, amount,
+    #                                                             order_type=order_type, price=price,
+    #                                                             expiration_seconds=expiration_seconds)
+    #     self._sb_order_tracker.c_add_create_order_pending(order_id)
+    #     self._market_pair_tracker.c_start_tracking_order_id(order_id, market_info.market, market_pair)
+    #     if is_maker:
+    #         self._maker_order_ids.append(order_id)
+    #     return order_id
 
     cdef c_cancel_order(self, object market_pair, str order_id):
         market_trading_pair_tuple = self._sb_order_tracker.c_get_market_pair_from_order_id(order_id)

@@ -86,14 +86,17 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
                                              object market_pair)
     cdef c_take_suggested_price_sample(self,
                                        object market_pair)
+
     cdef c_check_and_create_new_orders(self,
                                        object market_pair,
                                        bint has_active_bid,
                                        bint has_active_ask)
+
     cdef str c_place_order(self,
                            object market_pair,
                            bint is_buy,
-                           bint is_maker,
+                           object market,
+                           bint record_maker,
                            object amount,
                            object price)
 
