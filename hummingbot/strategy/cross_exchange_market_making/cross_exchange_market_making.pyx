@@ -873,6 +873,7 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
         :return: a Decimal which is the price or None if order cannot be hedged on the taker market
         """
         cdef:
+            str maker_trading_pair = market_pair.maker.trading_pair
             str taker_trading_pair = market_pair.taker.trading_pair
             ExchangeBase maker_market = market_pair.maker.market
             ExchangeBase taker_market = market_pair.taker.market
@@ -943,7 +944,7 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
 
             # You are selling on the maker market and buying on the taker market
             maker_price = taker_price * (1 + self._min_profitability)
-            
+
             if self._order_optimization_enabled:
                 ask_order_optimized_price = maker_market.c_get_price_for_volume(maker_trading_pair, True, self._ask_order_optimization_depth).result_price
                 maker_price = min(maker_price, ask_order_optimized_price)
