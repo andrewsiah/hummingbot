@@ -38,6 +38,9 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
         bint _hb_app_notification
         list _maker_order_ids
         double _last_conv_rates_logged
+        bint _order_optimization_enabled
+        object _ask_order_optimization_depth
+        object _bid_order_optimization_depth
 
     cdef c_process_market_pair(self,
                                object market_pair,

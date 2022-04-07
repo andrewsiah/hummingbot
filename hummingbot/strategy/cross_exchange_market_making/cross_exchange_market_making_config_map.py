@@ -234,5 +234,29 @@ cross_exchange_market_making_config_map = {
         default=Decimal("5"),
         type_str="decimal",
         validator=lambda v: validate_decimal(v, Decimal(0), Decimal(100), inclusive=True)
-    )
+    ),
+    "order_optimization_enabled":
+        ConfigVar(key="order_optimization_enabled",
+                  prompt="Do you want to enable best bid ask jumping? (Yes/No) >>> ",
+                  type_str="bool",
+                  default=False,
+                  validator=validate_bool),
+    "ask_order_optimization_depth":
+        ConfigVar(key="ask_order_optimization_depth",
+                  prompt="How deep do you want to go into the order book for calculating "
+                         "the top ask, ignoring dust orders on the top "
+                         "(expressed in base asset amount)? >>> ",
+                  required_if=lambda: cross_exchange_market_making_config_map.get("order_optimization_enabled").value,
+                  type_str="decimal",
+                  validator=lambda v: validate_decimal(v, min_value=0),
+                  default=0),
+    "bid_order_optimization_depth":
+        ConfigVar(key="bid_order_optimization_depth",
+                  prompt="How deep do you want to go into the order book for calculating "
+                         "the top bid, ignoring dust orders on the top "
+                         "(expressed in base asset amount)? >>> ",
+                  required_if=lambda: cross_exchange_market_making_config_map.get("order_optimization_enabled").value,
+                  type_str="decimal",
+                  validator=lambda v: validate_decimal(v, min_value=0),
+                  default=0),
 }

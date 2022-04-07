@@ -32,6 +32,9 @@ def start(self):
     taker_to_maker_base_conversion_rate = xemm_map.get("taker_to_maker_base_conversion_rate").value
     taker_to_maker_quote_conversion_rate = xemm_map.get("taker_to_maker_quote_conversion_rate").value
     slippage_buffer = xemm_map.get("slippage_buffer").value / Decimal("100")
+    order_optimization_enabled = xemm_map.get("order_optimization_enabled").value
+    ask_order_optimization_depth = xemm_map.get("ask_order_optimization_depth").value
+    bid_order_optimization_depth = xemm_map.get("bid_order_optimization_depth").value
 
     # check if top depth tolerance is a list or if trade size override exists
     if isinstance(top_depth_tolerance, list) or "trade_size_override" in xemm_map:
@@ -89,4 +92,7 @@ def start(self):
         taker_to_maker_quote_conversion_rate=taker_to_maker_quote_conversion_rate,
         slippage_buffer=slippage_buffer,
         hb_app_notification=True,
+        order_optimization_enabled=order_optimization_enabled,
+        ask_order_optimization_depth=ask_order_optimization_depth,
+        bid_order_optimization_depth=bid_order_optimization_depth,
     )

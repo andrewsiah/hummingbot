@@ -76,7 +76,10 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
                     taker_to_maker_base_conversion_rate: Decimal = Decimal("1"),
                     taker_to_maker_quote_conversion_rate: Decimal = Decimal("1"),
                     slippage_buffer: Decimal = Decimal("0.05"),
-                    hb_app_notification: bool = False
+                    hb_app_notification: bool = False,
+                    order_optimization_enabled: bool = False,
+                    ask_order_optimization_depth: Decimal = s_decimal_zero,
+                    bid_order_optimization_depth: Decimal = s_decimal_zero,
                     ):
         """
         Initializes a cross exchange market making strategy object.
@@ -139,6 +142,9 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
         self._slippage_buffer = slippage_buffer
         self._last_conv_rates_logged = 0
         self._hb_app_notification = hb_app_notification
+        self._order_optimization_enabled = order_optimization_enabled
+        self._ask_order_optimization_depth = ask_order_optimization_depth
+        self._bid_order_optimization_depth = bid_order_optimization_depth
 
         self._maker_order_ids = []
         cdef:
@@ -899,6 +905,10 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
             # you are buying on the maker market and selling on the taker market
             maker_price = taker_price / (1 + self._min_profitability)
 
+            if self._order_optimization_enabled:
+                bid_order_optimized_price = maker_market.c_get_price_for_volume(maker_trading_pair, False, self._bid_order_optimization_depth).result_price
+                maker_price = max(maker_price, bid_order_optimized_price)
+
             # # If your bid is higher than highest bid price, reduce it to one tick above the top bid price
             if self._adjust_orders_enabled:
                 # If maker bid order book is not empty
@@ -933,6 +943,10 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
 
             # You are selling on the maker market and buying on the taker market
             maker_price = taker_price * (1 + self._min_profitability)
+            
+            if self._order_optimization_enabled:
+                ask_order_optimized_price = maker_market.c_get_price_for_volume(maker_trading_pair, True, self._ask_order_optimization_depth).result_price
+                maker_price = min(maker_price, ask_order_optimized_price)
 
             # If your ask is lower than the the top ask, increase it to just one tick below top ask
             if self._adjust_orders_enabled:
