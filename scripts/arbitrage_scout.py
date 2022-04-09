@@ -42,8 +42,8 @@ class ArbitrageScout(ScriptStrategyBase):
                 market_1_ask = self.connectors[self.arbitrage_markets[0]].get_price(pair, True)
                 market_2_bid = self.connectors[self.arbitrage_markets[1]].get_price(pair, False)
                 market_2_ask = self.connectors[self.arbitrage_markets[1]].get_price(pair, True)
-                profitability_buy_1_sell_2 = market_1_bid / market_2_ask - 1
-                profitability_buy_2_sell_1 = market_2_bid / market_1_ask - 1
+                profitability_buy_2_sell_1 = market_1_bid / market_2_ask - 1
+                profitability_buy_1_sell_2 = market_2_bid / market_1_ask - 1
 
                 if profitability_buy_1_sell_2 > self.min_profitability:
                     self.notify_hb_app_with_timestamp(f"{pair}: Buy@1 & Sell@2: {profitability_buy_1_sell_2:.5f}")
